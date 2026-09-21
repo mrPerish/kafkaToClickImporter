@@ -18,8 +18,9 @@ class MessageRouterTest {
             "RequestRejected", new Route(RequestRejectedBillingData.class,
                     "raw_smev3_non_business_res", null, Map.of()),
             "ExportChargesRequest", new Route(ExportChargesRequestBillingData.class,
-                    "raw_smev3_export_charges_cc_req", "ct_charge_type",
-                    Map.of("PayersConditions", "raw_smev3_export_charges_pc_req",
+                    null, "ct_charge_type",
+                    Map.of("ChargesConditions", "raw_smev3_export_charges_cc_req",
+                            "PayersConditions", "raw_smev3_export_charges_pc_req",
                             "TimeConditions", "raw_smev3_export_charges_tc_req"))));
     private final MessageRouter router = new MessageRouter(JsonMapper.builder().build(), properties);
 
@@ -35,12 +36,20 @@ class MessageRouterTest {
 
     @Test
     void picksTableByDiscriminator() {
+        assertThat(router.route("ExportChargesRequest", "{\"ct_charge_type\":\"ChargesConditions\"}").table())
+                .isEqualTo("raw_smev3_export_charges_cc_req");
         assertThat(router.route("ExportChargesRequest", "{\"ct_charge_type\":\"PayersConditions\"}").table())
                 .isEqualTo("raw_smev3_export_charges_pc_req");
         assertThat(router.route("ExportChargesRequest", "{\"ct_charge_type\":\"TimeConditions\"}").table())
                 .isEqualTo("raw_smev3_export_charges_tc_req");
-        assertThat(router.route("ExportChargesRequest", "{}").table())
-                .isEqualTo("raw_smev3_export_charges_cc_req");
+    }
+
+    @Test
+    void rejectsUnknownDiscriminator() {
+        assertThatThrownBy(() -> router.route("ExportChargesRequest", "{\"ct_charge_type\":\"Other\"}"))
+                .isInstanceOf(UnknownDiscriminatorException.class);
+        assertThatThrownBy(() -> router.route("ExportChargesRequest", "{}"))
+                .isInstanceOf(UnknownDiscriminatorException.class);
     }
 
     @Test

@@ -24,8 +24,7 @@ importer:
   routes:
     ExportChargesRequest:
       type: ru.rtksoft.smev3.billing.dto.ExportChargesRequestBillingData
-      table: raw_smev3_export_charges_cc_req
-      # Таблица выбирается по значению json-поля; при отсутствии совпадения берётся table.
+      # Таблица выбирается по значению json-поля; неизвестное значение — ошибка, сообщение пропускается.
       discriminator-field: ct_charge_type
       tables-by-discriminator:
         ChargesConditions: raw_smev3_export_charges_cc_req

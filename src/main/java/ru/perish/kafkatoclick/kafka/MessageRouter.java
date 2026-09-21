@@ -36,10 +36,12 @@ public class MessageRouter {
             return route.table();
         }
         JsonNode discriminator = json.get(route.discriminatorField());
-        if (discriminator == null) {
-            return route.table();
+        String value = discriminator == null || discriminator.isNull() ? null : discriminator.asString();
+        String table = value == null ? null : route.tablesByDiscriminator().get(value);
+        if (table == null) {
+            throw new UnknownDiscriminatorException(route.discriminatorField(), value);
         }
-        return route.tablesByDiscriminator().getOrDefault(discriminator.asString(), route.table());
+        return table;
     }
 
     public record RoutedMessage(String table, Class<? extends BillingData> type, BillingData data) {

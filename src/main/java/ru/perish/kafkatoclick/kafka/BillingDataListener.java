@@ -41,6 +41,8 @@ public class BillingDataListener {
                         .add(routed.data());
             } catch (UnknownMessageTypeException e) {
                 log.error("Unknown __TypeId__ {}, offset {}", typeId, record.offset());
+            } catch (UnknownDiscriminatorException e) {
+                log.error("{} for __TypeId__ {}, offset {}", e.getMessage(), typeId, record.offset());
             } catch (Exception e) {
                 log.error("Failed to parse message with __TypeId__ {}, offset {}", typeId, record.offset(), e);
             }
