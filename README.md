@@ -45,6 +45,20 @@ mvn spring-boot:run
 curl localhost:8080/actuator/health
 ```
 
+## Устойчивость и метрики
+
+Ошибка не роняет батч: сообщение с неизвестным `__TypeId__`/`ct_charge_type` или битым JSON логируется и пропускается, а если INSERT батча отвергнут ClickHouse (например, ограничение на столбец), строки вставляются по одной — сбойная логируется со всеми значениями, остальные записываются. Повторной обработки батча не происходит.
+
+Метрики Micrometer (`/actuator/metrics`, `/actuator/prometheus`):
+
+| Метрика | Теги | Смысл |
+| --- | --- | --- |
+| `importer.messages.consumed` | `type` | прочитано сообщений |
+| `importer.messages.rejected` | `type`, `reason` | не разобрано (`unknown_type`, `unknown_discriminator`, `parse_error`) |
+| `importer.rows.inserted` | `table`, `type` | записано строк |
+| `importer.rows.failed` | `table`, `type` | потеряно строк на вставке |
+| `importer.write` | `table`, `type` | время вставки батча |
+
 ## Тесты
 
 ```bash
