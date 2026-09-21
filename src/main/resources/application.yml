@@ -14,12 +14,18 @@ spring:
       max-poll-records: ${KAFKA_MAX_POLL_RECORDS:1000}
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
     listener:
       type: batch
       ack-mode: batch
 
 importer:
   topic: ${IMPORTER_TOPIC:smev3-billing}
+  # Сюда уходят сообщения, которые не удалось разобрать или записать в ClickHouse.
+  dead-letter-topic: ${IMPORTER_DEAD_LETTER_TOPIC:smev3-billing-dlt}
   # Ключ — значение заголовка __TypeId__.
   routes:
     ExportChargesRequest:

@@ -6,8 +6,13 @@ import ru.rtksoft.smev3.billing.dto.BillingData;
 
 import java.util.Map;
 
+/**
+ * @param topic           топик с сообщениями биллинга
+ * @param deadLetterTopic топик для сообщений, которые не удалось разобрать или записать
+ * @param routes          значение заголовка {@code __TypeId__} -> маршрут
+ */
 @ConfigurationProperties(prefix = "importer")
-public record ImporterProperties(String topic, Map<String, Route> routes) {
+public record ImporterProperties(String topic, String deadLetterTopic, Map<String, Route> routes) {
 
     /**
      * Маршрут для одного значения заголовка {@code __TypeId__}.

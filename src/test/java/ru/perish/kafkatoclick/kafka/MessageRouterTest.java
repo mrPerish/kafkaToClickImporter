@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class MessageRouterTest {
 
-    private final ImporterProperties properties = new ImporterProperties("topic", Map.of(
+    private final ImporterProperties properties = new ImporterProperties("topic", "topic-dlt", Map.of(
             "RequestRejected", new Route(RequestRejectedBillingData.class,
                     "raw_smev3_non_business_res", null, Map.of()),
             "ExportChargesRequest", new Route(ExportChargesRequestBillingData.class,

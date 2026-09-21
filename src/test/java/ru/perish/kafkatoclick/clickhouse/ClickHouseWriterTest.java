@@ -59,7 +59,8 @@ class ClickHouseWriterTest {
         verify(statement).setObject(2, null);
         verify(statement).setObject(3, "SENDER");
         verify(statement).setObject(8, "ERR");
-        assertThat(result).isEqualTo(new ClickHouseWriter.WriteResult(1, 0));
+        assertThat(result.inserted()).isEqualTo(1);
+        assertThat(result.failed()).isEmpty();
         assertThat(meterRegistry.counter("importer.rows.inserted",
                 "table", TABLE, "type", "RequestRejectedBillingData").count()).isEqualTo(1);
     }
@@ -81,15 +82,15 @@ class ClickHouseWriterTest {
 
         ClickHouseWriter.WriteResult result = writer.write(TABLE, RequestRejectedBillingData.class, rows);
 
-        assertThat(result).isEqualTo(new ClickHouseWriter.WriteResult(2, 1));
+        assertThat(result.inserted()).isEqualTo(2);
+        assertThat(result.failed()).containsExactly(rows.get(1));
         assertThat(meterRegistry.counter("importer.rows.failed",
                 "table", TABLE, "type", "RequestRejectedBillingData").count()).isEqualTo(1);
     }
 
     @Test
     void skipsEmptyBatch() {
-        assertThat(writer.write(TABLE, RequestRejectedBillingData.class, List.of()))
-                .isEqualTo(new ClickHouseWriter.WriteResult(0, 0));
+        assertThat(writer.write(TABLE, RequestRejectedBillingData.class, List.of()).inserted()).isZero();
         verifyNoInteractions(jdbcTemplate);
     }
 }

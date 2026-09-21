@@ -14,6 +14,7 @@ import ru.rtksoft.smev3.billing.dto.BillingData;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,8 +22,9 @@ import java.util.Map;
 /**
  * Батчевое чтение топика: роутинг по {@code __TypeId__} и пакетная запись в ClickHouse.
  *
- * <p>Ошибка отдельного сообщения или отдельной строки логируется и не приводит к повторной
- * обработке всего батча.
+ * <p>Сообщение, которое не удалось разобрать или записать, уходит в dead letter topic; батч
+ * при этом не переобрабатывается. Исключение бросается только если недоступен и сам DLT —
+ * тогда оффсеты не коммитятся и данные не теряются.
  */
 @Component
 public class BillingDataListener {
@@ -33,17 +35,24 @@ public class BillingDataListener {
 
     private final MessageRouter router;
     private final ClickHouseWriter writer;
+    private final DeadLetterPublisher deadLetterPublisher;
     private final MeterRegistry meterRegistry;
 
-    public BillingDataListener(MessageRouter router, ClickHouseWriter writer, MeterRegistry meterRegistry) {
+    public BillingDataListener(MessageRouter router,
+                               ClickHouseWriter writer,
+                               DeadLetterPublisher deadLetterPublisher,
+                               MeterRegistry meterRegistry) {
         this.router = router;
         this.writer = writer;
+        this.deadLetterPublisher = deadLetterPublisher;
         this.meterRegistry = meterRegistry;
     }
 
     @KafkaListener(topics = "${importer.topic}")
     public void onMessages(List<ConsumerRecord<String, String>> records) {
         Map<TableAndType, List<BillingData>> batches = new LinkedHashMap<>();
+        Map<BillingData, ConsumerRecord<String, String>> sources = new IdentityHashMap<>();
+
         for (ConsumerRecord<String, String> record : records) {
             String typeId = typeId(record);
             meterRegistry.counter("importer.messages.consumed", "type", typeId == null ? UNKNOWN_TYPE : typeId)
@@ -52,27 +61,25 @@ public class BillingDataListener {
                 RoutedMessage routed = router.route(typeId, record.value());
                 batches.computeIfAbsent(new TableAndType(routed.table(), routed.type()), key -> new ArrayList<>())
                         .add(routed.data());
+                sources.put(routed.data(), record);
             } catch (UnknownMessageTypeException e) {
-                rejected(typeId, "unknown_type");
                 log.error("Unknown __TypeId__ {}, offset {}", typeId, record.offset());
+                deadLetterPublisher.send(record, "unknown_type", e.getMessage());
             } catch (UnknownDiscriminatorException e) {
-                rejected(typeId, "unknown_discriminator");
                 log.error("{} for __TypeId__ {}, offset {}", e.getMessage(), typeId, record.offset());
+                deadLetterPublisher.send(record, "unknown_discriminator", e.getMessage());
             } catch (Exception e) {
-                rejected(typeId, "parse_error");
-                log.error("Failed to parse message with __TypeId__ {}, offset {}, payload {}",
-                        typeId, record.offset(), record.value(), e);
+                log.error("Failed to parse message with __TypeId__ {}, offset {}", typeId, record.offset(), e);
+                deadLetterPublisher.send(record, "parse_error", e.getMessage());
             }
         }
+
         batches.forEach((target, rows) -> {
             WriteResult result = writer.write(target.table(), target.type(), rows);
-            log.info("Inserted {} rows into {}, dropped {}", result.inserted(), target.table(), result.failed());
+            result.failed().forEach(row -> deadLetterPublisher.send(sources.get(row), "insert_error", target.table()));
+            log.info("Inserted {} rows into {}, dead lettered {}",
+                    result.inserted(), target.table(), result.failed().size());
         });
-    }
-
-    private void rejected(String typeId, String reason) {
-        meterRegistry.counter("importer.messages.rejected",
-                "type", typeId == null ? UNKNOWN_TYPE : typeId, "reason", reason).increment();
     }
 
     private String typeId(ConsumerRecord<String, String> record) {
