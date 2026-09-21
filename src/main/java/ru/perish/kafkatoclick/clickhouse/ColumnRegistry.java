@@ -26,7 +26,7 @@ public class ColumnRegistry {
     private static List<Column> introspect(Class<?> type) {
         List<Class<?>> hierarchy = new ArrayList<>();
         for (Class<?> current = type; current != null && current != Object.class; current = current.getSuperclass()) {
-            hierarchy.addFirst(current);
+            hierarchy.add(0, current);
         }
         List<Column> columns = new ArrayList<>();
         for (Class<?> current : hierarchy) {
