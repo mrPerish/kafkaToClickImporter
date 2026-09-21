@@ -26,8 +26,11 @@ importer:
       type: ru.rtksoft.smev3.billing.dto.ExportChargesRequestBillingData
       table: raw_smev3_export_charges_cc_req
       # Таблица выбирается по значению json-поля; при отсутствии совпадения берётся table.
-      discriminator-field: ct_vvs
-      tables-by-discriminator: {}
+      discriminator-field: ct_charge_type
+      tables-by-discriminator:
+        ChargesConditions: raw_smev3_export_charges_cc_req
+        PayersConditions: raw_smev3_export_charges_pc_req
+        TimeConditions: raw_smev3_export_charges_tc_req
     ExportChargesResponse:
       type: ru.rtksoft.smev3.billing.dto.ExportChargesResponseBillingData
       table: raw_smev3_export_charges_res
