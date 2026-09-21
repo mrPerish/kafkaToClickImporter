@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: kafkaToClickImporter
+  datasource:
+    url: ${CLICKHOUSE_URL:jdbc:clickhouse://localhost:8123/default}
+    username: ${CLICKHOUSE_USER:default}
+    password: ${CLICKHOUSE_PASSWORD:}
+    driver-class-name: com.clickhouse.jdbc.ClickHouseDriver
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: kafka-to-click-importer
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.value.default.type: ru.perish.kafkatoclick.model.ImportEvent
+        spring.json.trusted.packages: ru.perish.kafkatoclick.model
+    listener:
+      type: batch
+      ack-mode: batch
+
+importer:
+  topic: ${IMPORTER_TOPIC:events}
+  table: ${IMPORTER_TABLE:events}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
