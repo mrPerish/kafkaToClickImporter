@@ -3,13 +3,11 @@ package ru.perish.kafkatoclick.clickhouse;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.ParameterizedPreparedStatementSetter;
-import ru.perish.kafkatoclick.config.ImporterProperties;
-import ru.perish.kafkatoclick.model.ImportEvent;
+import ru.rtksoft.smev3.billing.dto.RequestRejectedBillingData;
 
 import java.sql.PreparedStatement;
-import java.sql.Timestamp;
-import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -21,39 +19,44 @@ import static org.mockito.Mockito.when;
 
 class ClickHouseWriterTest {
 
-    private static final String EXPECTED_SQL =
-            "INSERT INTO events (id, source, payload, event_time) VALUES (?, ?, ?, ?)";
+    private static final String EXPECTED_SQL = "INSERT INTO raw_smev3_non_business_res "
+            + "(mid, d, s_mn, ct_vvs, ct_to_original_mid, ct_to_sender_mnemonic, ct_no_content_type, ct_code, ct_description) "
+            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
     private final JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
-    private final ClickHouseWriter writer =
-            new ClickHouseWriter(jdbcTemplate, new ImporterProperties("events", "events"));
+    private final ClickHouseWriter writer = new ClickHouseWriter(jdbcTemplate, new ColumnRegistry());
 
     @Test
     @SuppressWarnings("unchecked")
-    void writesBatchWithGeneratedInsert() throws Exception {
+    void insertsColumnsNamedAfterJsonProperties() throws Exception {
         PreparedStatement statement = mock(PreparedStatement.class);
         when(jdbcTemplate.batchUpdate(eq(EXPECTED_SQL), any(List.class), anyInt(), any()))
                 .thenAnswer(invocation -> {
-                    List<ImportEvent> batch = invocation.getArgument(1);
-                    ParameterizedPreparedStatementSetter<ImportEvent> setter = invocation.getArgument(3);
-                    for (ImportEvent event : batch) {
-                        setter.setValues(statement, event);
+                    List<RequestRejectedBillingData> batch = invocation.getArgument(1);
+                    ParameterizedPreparedStatementSetter<RequestRejectedBillingData> setter = invocation.getArgument(3);
+                    for (RequestRejectedBillingData row : batch) {
+                        setter.setValues(statement, row);
                     }
                     return new int[0][0];
                 });
 
-        Instant eventTime = Instant.parse("2024-01-01T00:00:00Z");
-        writer.write(List.of(new ImportEvent("1", "test", "{\"a\":1}", eventTime)));
+        UUID messageId = UUID.randomUUID();
+        RequestRejectedBillingData data = new RequestRejectedBillingData();
+        data.setMessageId(messageId);
+        data.setSenderMnemonic("SENDER");
+        data.setCode("ERR");
 
-        verify(statement).setString(1, "1");
-        verify(statement).setString(2, "test");
-        verify(statement).setString(3, "{\"a\":1}");
-        verify(statement).setTimestamp(4, Timestamp.from(eventTime));
+        writer.write("raw_smev3_non_business_res", RequestRejectedBillingData.class, List.of(data));
+
+        verify(statement).setObject(1, messageId.toString());
+        verify(statement).setObject(2, null);
+        verify(statement).setObject(3, "SENDER");
+        verify(statement).setObject(8, "ERR");
     }
 
     @Test
     void skipsEmptyBatch() {
-        writer.write(List.of());
+        writer.write("raw_smev3_non_business_res", RequestRejectedBillingData.class, List.of());
         verifyNoInteractions(jdbcTemplate);
     }
 }

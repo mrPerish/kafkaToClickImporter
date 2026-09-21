@@ -9,20 +9,55 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
-      group-id: kafka-to-click-importer
+      group-id: ${KAFKA_GROUP_ID:kafka-to-click-importer}
       auto-offset-reset: earliest
+      max-poll-records: ${KAFKA_MAX_POLL_RECORDS:1000}
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      properties:
-        spring.json.value.default.type: ru.perish.kafkatoclick.model.ImportEvent
-        spring.json.trusted.packages: ru.perish.kafkatoclick.model
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
     listener:
       type: batch
       ack-mode: batch
 
 importer:
-  topic: ${IMPORTER_TOPIC:events}
-  table: ${IMPORTER_TABLE:events}
+  topic: ${IMPORTER_TOPIC:smev3-billing}
+  # Ключ — значение заголовка __TypeId__.
+  routes:
+    ExportChargesRequest:
+      type: ru.rtksoft.smev3.billing.dto.ExportChargesRequestBillingData
+      table: raw_smev3_export_charges_cc_req
+      # Таблица выбирается по значению json-поля; при отсутствии совпадения берётся table.
+      discriminator-field: ct_vvs
+      tables-by-discriminator: {}
+    ExportChargesResponse:
+      type: ru.rtksoft.smev3.billing.dto.ExportChargesResponseBillingData
+      table: raw_smev3_export_charges_res
+    ExportNoticeRequest:
+      type: ru.rtksoft.smev3.billing.dto.ExportNoticeRequestBillingData
+      table: raw_smev3_export_notice_req
+    ExportPaymentsRequest:
+      type: ru.rtksoft.smev3.billing.dto.ExportPaymentsRequestBillingData
+      table: raw_smev3_export_payment_details_req
+    ExportPaymentsResponse:
+      type: ru.rtksoft.smev3.billing.dto.ExportPaymentsResponseBillingData
+      table: raw_smev3_export_payment_details_res
+    ImportPaymentsRequest:
+      type: ru.rtksoft.smev3.billing.dto.ImportPaymentsRequestBillingData
+      table: raw_smev3_import_payments_req
+    ImportPaymentsResponse:
+      type: ru.rtksoft.smev3.billing.dto.ImportPaymentsResponseBillingData
+      table: raw_smev3_import_payments_res
+    RequestRejected:
+      type: ru.rtksoft.smev3.billing.dto.RequestRejectedBillingData
+      table: raw_smev3_non_business_res
+    DeliveryDocumentsRequestBillingData:
+      type: ru.rtksoft.smev3.billing.dto.DeliveryDocumentsRequestBillingData
+      table: raw_smev3_delivery_data_documents_req
+    PersonalDocumentsRequestBillingData:
+      type: ru.rtksoft.smev3.billing.dto.PersonalDocumentsRequestBillingData
+      table: raw_smev3_personal_data_documents_req
+    PersonalDocumentsResponseBillingData:
+      type: ru.rtksoft.smev3.billing.dto.PersonalDocumentsResponseBillingData
+      table: raw_smev3_personal_data_documents_res
 
 management:
   endpoints:

@@ -2,32 +2,41 @@ package ru.perish.kafkatoclick.clickhouse;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
-import ru.perish.kafkatoclick.config.ImporterProperties;
-import ru.perish.kafkatoclick.model.ImportEvent;
+import ru.perish.kafkatoclick.clickhouse.ColumnRegistry.Column;
+import ru.rtksoft.smev3.billing.dto.BillingData;
 
-import java.sql.Timestamp;
 import java.util.List;
 
+/**
+ * Пакетная вставка DTO в таблицу ClickHouse.
+ */
 @Component
 public class ClickHouseWriter {
 
     private final JdbcTemplate jdbcTemplate;
-    private final String insertSql;
+    private final ColumnRegistry columnRegistry;
 
-    public ClickHouseWriter(JdbcTemplate jdbcTemplate, ImporterProperties properties) {
+    public ClickHouseWriter(JdbcTemplate jdbcTemplate, ColumnRegistry columnRegistry) {
         this.jdbcTemplate = jdbcTemplate;
-        this.insertSql = "INSERT INTO " + properties.table() + " (id, source, payload, event_time) VALUES (?, ?, ?, ?)";
+        this.columnRegistry = columnRegistry;
     }
 
-    public void write(List<ImportEvent> events) {
-        if (events.isEmpty()) {
+    public void write(String table, Class<? extends BillingData> type, List<? extends BillingData> rows) {
+        if (rows.isEmpty()) {
             return;
         }
-        jdbcTemplate.batchUpdate(insertSql, events, events.size(), (ps, event) -> {
-            ps.setString(1, event.id());
-            ps.setString(2, event.source());
-            ps.setString(3, event.payload());
-            ps.setTimestamp(4, Timestamp.from(event.eventTime()));
+        List<Column> columns = columnRegistry.columns(type);
+        jdbcTemplate.batchUpdate(insertSql(table, columns), rows, rows.size(), (statement, row) -> {
+            for (int i = 0; i < columns.size(); i++) {
+                Object value = columns.get(i).value(row);
+                statement.setObject(i + 1, value == null ? null : value.toString());
+            }
         });
+    }
+
+    private String insertSql(String table, List<Column> columns) {
+        String names = String.join(", ", columns.stream().map(Column::name).toList());
+        String placeholders = String.join(", ", columns.stream().map(column -> "?").toList());
+        return "INSERT INTO " + table + " (" + names + ") VALUES (" + placeholders + ")";
     }
 }
